@@ -25,6 +25,6 @@ spec:
   http:
   - route:
     - destination:
-        host: webapp
+        host: webapp #if we want to access webapp via namespace outher than istioinaction we should put here webapp.istioinaction
         port:
           number: 80
