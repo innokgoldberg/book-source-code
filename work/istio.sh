@@ -576,3 +576,38 @@ curl -H "Host: catalog.istioinaction.io" https://catalog.istioinaction.io:443/it
 # The answer lies in an extension to TLS called Server Name Indication (SNI).
 # Basically, when an HTTPS connection is created, the client first identifies which service it’s try- ing to reach using the ClientHello part of the TLS handshake.
 # Istio’s gateway (Envoy, specifically) implements SNI on TLS, which is how it can present the correct cert and route to the correct service.
+
+#4.4.2 Traffic routing with SNI passthrough
+
+#n this sec- tion, we look at a combination of these two capabilities: routing TCP traffic based on SNI hostname without terminating the traffic
+# on the Istio ingress gateway. All the gate- way will do is inspect the SNI headers and route the traffic to the specific backend,
+# which will then terminate the TLS connection. The connection will “pass through” the gateway and be handled by the actual service, not the gateway.
+ #This opens the door for a much wider swath of applications that can participate in the service mesh, including TCP over TLS services like databases,
+ # message queues, caches, and so on—even legacy applications that expect to handle and terminate HTTPS/TLS traffic.
+
+ #Let’s get started by deploying our example application that terminates TLS
+ kubectl apply -f ch4/sni/simple-tls-service-1.yaml
+
+ kubectl delete gateway echo-tcp-gateway -n istioinaction
+
+#we create a gateway that will passthrough tls traffic to end app
+ kubectl apply -f ch4/sni/passthrough-sni-gateway.yaml
+#to route tls traffic to app we create vs
+ kubectl apply -f ch4/sni/passthrough-sni-vs-1.yaml
+
+ curl -H "Host: simple-sni-1.istioinaction.io" https://simple-sni-1.istioinaction.io:31400/ \
+ --cacert ch4/sni/simple-sni-1/2_intermediate/certs/ca-chain.cert.pem  --resolve simple-sni-1.istioinaction.io:31400:$LB_IP
+ #Our call from curl went to the Istio ingress gateway, traversed through without termi- nation, and ended up on the example service simple-tls-service-1. To make the
+   #TCP traffic 103 routing more apparent, let’s deploy a second service with different certificates and
+   #routes based on the SNI host
+
+  kubectl apply -f ch4/sni/simple-tls-service-2.yaml
+
+#uodate gateway to add second app and create vs for it
+  kubectl apply -f ch4/sni/passthrough-sni-gateway-both.yaml
+  kubectl apply -f ch4/sni/passthrough-sni-vs-2.yaml
+
+#due to SNI (located in TLS cert, verified during tls handshake from ClientHello header ) istio-ingress get right route dest
+#and pass tls traffic to correct app, where it is terminated
+  curl -H "Host: simple-sni-2.istioinaction.io"  https://simple-sni-2.istioinaction.io:31400/ \
+  --cacert ch4/sni/simple-sni-2/2_intermediate/certs/ca-chain.cert.pem  --resolve simple-sni-2.istioinaction.io:31400:$LB_IP
